@@ -1,103 +1,557 @@
+"use client";
 import Image from "next/image";
+import { useLayoutEffect, useRef, useState } from "react";
+import gsap from "gsap";
+import { UserButton, useUser } from "@clerk/nextjs";
+import { useSpeechSynthesis } from 'react-speech-kit';
+
+interface AnalysisResult {
+  analysis: string;
+  error?: string;
+  details?: string;
+}
+
+function formatAnalysisText(text: string): string {
+  let formattedText = text;
+
+  // Handle section headings with double asterisks
+  formattedText = formattedText.replace(
+    /\*\*([\d]+\.\s*[^*]+?)\*\*/g,
+    '<h3 class="text-xl font-semibold text-green-600 dark:text-green-400 mb-3">$1</h3>'
+  );
+
+  // Handle bold text with double asterisks (not part of headings)
+  formattedText = formattedText.replace(
+    /\*\*([^*]+?)\*\*/g,
+    '<strong class="font-bold text-green-700 dark:text-green-400">$1</strong>'
+  );
+
+  // Handle italic/emphasized text with single asterisks
+  formattedText = formattedText.replace(
+    /\*([^*]+?)\*/g,
+    '<em class="italic text-blue-600 dark:text-blue-400">$1</em>'
+  );
+
+  // Handle line breaks
+  formattedText = formattedText.replace(/\n/g, '<br/>');
+
+  return formattedText;
+}
 
 export default function Home() {
-  return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm/6 text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-[family-name:var(--font-geist-mono)] font-semibold">
-              app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+  const { isLoaded, isSignedIn, user } = useUser();
+  const [isDragging, setIsDragging] = useState(false);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [uploadedImage, setUploadedImage] = useState<string | null>(null);
+  const [showSuccess, setShowSuccess] = useState(false);
+  const [analysisResult, setAnalysisResult] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [currentSection, setCurrentSection] = useState<number>(0);
+  
+  const { speak, cancel, speaking } = useSpeechSynthesis();
+  
+  const imageContainerRef = useRef<HTMLDivElement | null>(null);
+  const textRefs = useRef<(HTMLElement | null)[]>([]);
+  const dropzoneRef = useRef<HTMLDivElement | null>(null);
+  const progressRef = useRef<HTMLDivElement | null>(null);
+  const toastRef = useRef<HTMLDivElement | null>(null);
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
+  // Function to clean text for speech
+  const cleanTextForSpeech = (text: string) => {
+    return text
+      .replace(/\*\*/g, '') // Remove bold markers
+      .replace(/\*/g, '')   // Remove italic markers
+      .replace(/<[^>]*>/g, '') // Remove HTML tags
+      .trim();
+  };
+
+  // Function to handle text-to-speech
+  const handleSpeak = (text: string, sectionIndex?: number) => {
+    if (speaking) {
+      cancel();
+      setIsPlaying(false);
+      setCurrentSection(-1);
+      return;
+    }
+
+    setIsPlaying(true);
+    setCurrentSection(sectionIndex ?? -1);
+    
+    speak({ 
+      text: cleanTextForSpeech(text),
+      onEnd: () => {
+        setIsPlaying(false);
+        setCurrentSection(-1);
+      }
+    });
+  };
+
+  useLayoutEffect(() => {
+    const tl = gsap.timeline();
+
+    tl.from(imageContainerRef.current, { 
+      opacity: 0, 
+      y: 30, 
+      duration: 1.2, 
+      ease: "power3.out" 
+    });
+    
+    tl.from(textRefs.current, { 
+      opacity: 0, 
+      y: 15, 
+      stagger: 0.2, 
+      duration: 0.7, 
+      ease: "power3.out" 
+    }, "-=0.7");
+    
+    tl.from(dropzoneRef.current, { 
+      opacity: 0, 
+      scale: 0.8, 
+      duration: 0.6 
+    }, "-=0.3");
+
+    return () => {
+      tl.kill();
+    };
+  }, []);
+
+  const showSuccessMessage = () => {
+    setShowSuccess(true);
+    const tl = gsap.timeline();
+    
+    // Animate in
+    tl.fromTo(toastRef.current,
+      { y: 50, opacity: 0 },
+      { y: 0, opacity: 1, duration: 0.3, ease: "power2.out" }
+    );
+    
+    // Wait and animate out
+    tl.to(toastRef.current, {
+      y: 50,
+      opacity: 0,
+      duration: 0.3,
+      delay: 2,
+      ease: "power2.in",
+      onComplete: () => setShowSuccess(false)
+    });
+  };
+
+  const analyzePlant = async (imageData: string) => {
+    try {
+      setError(null);
+      const response = await fetch('/api/analyze-plant', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ image: imageData }),
+      });
+
+      const result: AnalysisResult = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to analyze plant');
+      }
+
+      if (result.error) {
+        throw new Error(result.error);
+      }
+
+      setAnalysisResult(result.analysis);
+    } catch (err: any) {
+      setError(err.message || 'Failed to analyze the plant. Please try again.');
+      console.error('Error:', err);
+      // Reset analyzing state
+      setIsAnalyzing(false);
+      // Show error toast
+      const errorToast = document.createElement('div');
+      errorToast.className = 'fixed bottom-8 right-8 bg-red-500 text-white px-6 py-4 rounded-lg shadow-lg flex items-center gap-3';
+      errorToast.innerHTML = `
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+        </svg>
+        <span class="font-medium">Analysis failed. Please try again.</span>
+      `;
+      document.body.appendChild(errorToast);
+      setTimeout(() => {
+        errorToast.remove();
+      }, 5000);
+    }
+  };
+
+  const handleFileChange = async (file: File) => {
+    if (!file.type.startsWith('image/')) {
+      setError('Please upload an image file (JPEG, PNG)');
+      return;
+    }
+
+    if (file.size > 10 * 1024 * 1024) { // 10MB limit
+      setError('Image size should be less than 10MB');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      try {
+        const imageData = e.target?.result as string;
+        if (!imageData) {
+          throw new Error('Failed to read image file');
+        }
+
+        setUploadedImage(imageData);
+        setIsAnalyzing(true);
+        setError(null);
+        
+        // Animate progress bar
+        gsap.to(progressRef.current, {
+          width: "100%",
+          duration: 2,
+          ease: "power1.inOut",
+        });
+
+        // Analyze the plant
+        await analyzePlant(imageData);
+        
+        setTimeout(() => {
+          setIsAnalyzing(false);
+          setShowSuccess(true);
+          
+          // Scroll to analysis result
+          const resultElement = document.getElementById('analysis-result');
+          if (resultElement) {
+            resultElement.scrollIntoView({ behavior: 'smooth' });
+          }
+        }, 2500);
+      } catch (err: any) {
+        setError(err.message || 'Failed to process image');
+        setIsAnalyzing(false);
+      }
+    };
+
+    reader.onerror = () => {
+      setError('Failed to read image file');
+      setIsAnalyzing(false);
+    };
+
+    reader.readAsDataURL(file);
+  };
+
+  const renderAnalysisContent = (content: string) => {
+    return content.split('\n\n').map((paragraph, index) => {
+      const isPlaying = currentSection === index;
+      
+      return (
+        <div 
+          key={index}
+          className={`text-gray-700 dark:text-gray-300 leading-relaxed mb-6 relative group ${
+            isPlaying ? 'bg-green-50 dark:bg-green-900/20 rounded-lg p-4' : ''
+          }`}
+        >
+          <div className="flex items-start justify-between gap-4">
+            <div
+              className="flex-grow"
+              dangerouslySetInnerHTML={{
+                __html: formatAnalysisText(paragraph)
+              }}
             />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+            <button
+              onClick={() => handleSpeak(paragraph, index)}
+              className={`flex items-center justify-center p-2 rounded-full transition-all duration-300 ${
+                isPlaying 
+                  ? 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-900/50' 
+                  : 'bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 hover:bg-green-200 dark:hover:bg-green-900/50'
+              } opacity-0 group-hover:opacity-100 focus:opacity-100`}
+              aria-label={isPlaying ? "Stop speaking" : "Read this section"}
+            >
+              {isPlaying ? (
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 18M6 6L18 6" />
+                </svg>
+              ) : (
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072M17.95 6.05a8 8 0 010 11.9M6.5 8.788v6.424a.5.5 0 00.757.429l5.5-3.212a.5.5 0 000-.858l-5.5-3.212a.5.5 0 00-.757.43z" />
+                </svg>
+              )}
+            </button>
+          </div>
         </div>
+      );
+    });
+  };
+
+  return (
+    <div className="flex flex-col items-center justify-center min-h-screen py-20 px-8 sm:px-20 font-[family-name:var(--font-geist-sans)] bg-white dark:bg-gray-900">
+      {/* Header with User Info */}
+      <div className="fixed top-0 right-0 p-4 flex items-center gap-4">
+        {isLoaded && (
+          <>
+            {isSignedIn ? (
+              <>
+                <span className="text-gray-700 dark:text-gray-300">
+                  Welcome, {user.firstName || user.username}!
+                </span>
+                <UserButton afterSignOutUrl="/"/>
+              </>
+            ) : (
+              <a
+                href="/sign-in"
+                className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg transition-colors"
+              >
+                Sign In
+              </a>
+            )}
+          </>
+        )}
+      </div>
+
+      <main className="flex flex-col items-center gap-12 max-w-4xl">
+        <div className="text-center">
+          <h1
+            className="aura-heading text-4xl sm:text-5xl md:text-6xl font-bold"
+            ref={(el) => {
+              textRefs.current[0] = el;
+            }}
+          >
+            Plant Disease Detection
+          </h1>
+          <span className="block text-green-600 dark:text-green-400 text-2xl sm:text-3xl md:text-4xl mt-6 font-semibold">
+            AI-Powered Analysis
+          </span>
+        </div>
+
+        {isSignedIn ? (
+          <>
+            <div 
+              className="highlight-section max-w-2xl text-center"
+              ref={(el) => {
+                textRefs.current[1] = el;
+              }}
+            >
+              <p className="description-text text-gray-700 dark:text-gray-300 mb-4">
+                Welcome to our advanced plant disease detection system. Using cutting-edge AI technology, 
+                we analyze your plant images in real-time to identify potential diseases and health issues.
+              </p>
+              <p className="description-text text-gray-700 dark:text-gray-300 mb-4">
+                Simply upload a clear photo of your plant's leaves, and our system will:
+              </p>
+              <ul className="description-text text-gray-700 dark:text-gray-300 text-left list-disc list-inside space-y-2">
+                <li>Analyze leaf patterns and discoloration</li>
+                <li>Identify common plant diseases and infections</li>
+                <li>Provide detailed analysis of plant health</li>
+                <li>Suggest treatment recommendations</li>
+              </ul>
+            </div>
+
+            {/* Existing image container and upload components */}
+            <div
+              ref={imageContainerRef}
+              className="relative w-full max-w-md aspect-video rounded-2xl overflow-hidden shadow-2xl hover:shadow-green-200/50 dark:hover:shadow-green-700/50 transition-all duration-300"
+            >
+              {uploadedImage ? (
+                <Image
+                  src={uploadedImage}
+                  alt="Uploaded plant image"
+                  fill
+                  className="object-cover transition-transform duration-300 hover:scale-105"
+                />
+              ) : (
+                <Image
+                  src="/image/plant.png"
+                  alt="Plant with potential disease"
+                  fill
+                  className="object-cover transition-transform duration-300 hover:scale-105"
+                />
+              )}
+            </div>
+
+            {/* Existing drag and drop zone */}
+            <div
+              ref={dropzoneRef}
+              className={`relative w-full min-h-[200px] p-8 rounded-xl border-2 border-dashed flex flex-col items-center justify-center gap-4 cursor-pointer ${
+                isDragging
+                  ? 'border-green-500 bg-green-50 dark:bg-green-900/50 border-4'
+                  : 'border-gray-400 bg-gray-50 hover:bg-gray-100 dark:bg-gray-800/50 dark:hover:bg-gray-800 dark:border-gray-600 hover:border-green-400 dark:hover:border-green-500'
+              }`}
+              onClick={() => document.getElementById('fileInput')?.click()}
+              onDrop={(e) => {
+                e.preventDefault();
+                setIsDragging(false);
+                if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+                  handleFileChange(e.dataTransfer.files[0]);
+                }
+              }}
+              onDragOver={(e) => e.preventDefault()}
+              onDragEnter={(e) => {
+                e.preventDefault();
+                setIsDragging(true);
+              }}
+              onDragLeave={(e) => {
+                e.preventDefault();
+                setIsDragging(false);
+              }}
+            >
+              <input
+                id="fileInput"
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => {
+                  if (e.target.files && e.target.files[0]) {
+                    handleFileChange(e.target.files[0]);
+                  }
+                }}
+              />
+              <div className="text-center flex flex-col items-center gap-4">
+                <div className={`p-4 rounded-full bg-gray-100 dark:bg-gray-700 transition-transform duration-300 ${
+                  isDragging ? 'scale-110 bg-green-100 dark:bg-green-900' : ''
+                }`}>
+                  <svg
+                    className={`h-12 w-12 text-gray-500 dark:text-gray-400 ${
+                      isDragging ? 'text-green-600 dark:text-green-400' : ''
+                    }`}
+                    stroke="currentColor"
+                    fill="none"
+                    viewBox="0 0 48 48"
+                    aria-hidden="true"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M24 14v20m-10-10h20"
+                    />
+                  </svg>
+                </div>
+                <div>
+                  <p className="text-lg text-gray-700 dark:text-gray-200 font-medium mb-1">
+                    Drop your image here or click to upload
+                  </p>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">
+                    PNG, JPG up to 10MB
+                  </p>
+                </div>
+                <div className={`mt-2 transition-opacity duration-300 ${isDragging ? 'opacity-100' : 'opacity-70'}`}>
+                  <p className="text-green-600 dark:text-green-400 font-medium">
+                    {isDragging ? 'Release to upload' : 'Click or drag file here'}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {isAnalyzing && (
+              <div className="w-full max-w-md">
+                <div className="flex items-center gap-4 mb-2">
+                  <div className="animate-spin rounded-full h-5 w-5 border-2 border-green-500 border-t-transparent"></div>
+                  <p className="text-gray-600 dark:text-gray-300">Analyzing your plant...</p>
+                </div>
+                <div className="h-2 w-full bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                  <div
+                    ref={progressRef}
+                    className="h-full w-0 bg-green-500 rounded-full transition-all duration-300"
+                  ></div>
+                </div>
+              </div>
+            )}
+
+            {error && (
+              <div className="w-full max-w-md p-4 bg-red-50 dark:bg-red-900/50 text-red-600 dark:text-red-400 rounded-lg">
+                {error}
+              </div>
+            )}
+
+            {analysisResult && !isAnalyzing && (
+              <div 
+                id="analysis-result"
+                className="w-full max-w-2xl bg-white dark:bg-gray-800 rounded-xl shadow-lg overflow-hidden transition-all duration-300 hover:shadow-xl"
+              >
+                <div className="p-6 space-y-6">
+                  <div className="flex items-center justify-between border-b border-gray-200 dark:border-gray-700 pb-4">
+                    <h2 className="text-2xl font-semibold text-gray-900 dark:text-gray-100">
+                      Analysis Results
+                    </h2>
+                    <div className="flex items-center gap-3">
+                      <button
+                        onClick={() => handleSpeak(analysisResult)}
+                        className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all duration-300 ${
+                          speaking 
+                            ? 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-900/50' 
+                            : 'bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 hover:bg-green-200 dark:hover:bg-green-900/50'
+                        }`}
+                      >
+                        {speaking ? (
+                          <>
+                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 18M6 6L18 6" />
+                            </svg>
+                            Stop
+                          </>
+                        ) : (
+                          <>
+                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072M17.95 6.05a8 8 0 010 11.9M6.5 8.788v6.424a.5.5 0 00.757.429l5.5-3.212a.5.5 0 000-.858l-5.5-3.212a.5.5 0 00-.757.43z" />
+                            </svg>
+                            Read All
+                          </>
+                        )}
+                      </button>
+                      <span className="px-3 py-1 bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200 text-sm rounded-full">
+                        AI Analysis Complete
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="prose dark:prose-invert max-w-none space-y-6">
+                    {renderAnalysisContent(analysisResult)}
+                  </div>
+
+                  <div className="mt-6 pt-4 border-t border-gray-200 dark:border-gray-700">
+                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                      Note: This analysis is powered by AI and should be used as a reference. 
+                      For critical plant health issues, consult with a professional botanist or plant pathologist.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+          </>
+        ) : (
+          <div className="text-center">
+            <p className="description-text text-xl text-gray-700 dark:text-gray-300 mb-8">
+              Please sign in to use the Plant Disease Detection system
+            </p>
+            <a
+              href="/sign-in"
+              className="inline-block bg-green-500 hover:bg-green-600 text-white px-8 py-3 rounded-lg text-lg font-medium transition-colors"
+            >
+              Sign In to Continue
+            </a>
+          </div>
+        )}
       </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
+
+      {/* Success Message Toast */}
+      {showSuccess && (
+        <div
+          ref={toastRef}
+          className="fixed bottom-8 right-8 bg-green-500 text-white px-6 py-4 rounded-lg shadow-lg flex items-center gap-3"
         >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+          <svg
+            className="w-6 h-6"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M5 13l4 4L19 7"
+            />
+          </svg>
+          <span className="font-medium">Analysis complete!</span>
+        </div>
+      )}
     </div>
   );
 }
