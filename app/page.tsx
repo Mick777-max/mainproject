@@ -1,6 +1,6 @@
 "use client";
 import Image from "next/image";
-import { useLayoutEffect, useRef, useState } from "react";
+import { useLayoutEffect, useRef, useState, useEffect } from "react";
 import gsap from "gsap";
 import { UserButton, useUser } from "@clerk/nextjs";
 import { useSpeechSynthesis } from 'react-speech-kit';
@@ -49,7 +49,47 @@ export default function Home() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentSection, setCurrentSection] = useState<number>(0);
   
-  const { speak, cancel, speaking } = useSpeechSynthesis();
+  const { speak, cancel, speaking, voices } = useSpeechSynthesis();
+  const [selectedVoice, setSelectedVoice] = useState<SpeechSynthesisVoice | null>(null);
+
+  // Find and set the preferred Indian female voice
+  useEffect(() => {
+    if (voices.length > 0) {
+      // Try to find an Indian English female voice
+      const indianVoice = voices.find(
+        voice => 
+          // Check for Indian English voices
+          (voice.lang === 'en-IN' || 
+           voice.name.toLowerCase().includes('indian') ||
+           voice.name.toLowerCase().includes('ravi') ||
+           voice.name.toLowerCase().includes('veena') ||
+           voice.name.toLowerCase().includes('priya')) &&
+          // Prefer female voices
+          (voice.name.toLowerCase().includes('female') ||
+           !voice.name.toLowerCase().includes('male'))
+      );
+
+      // Fallback to any English voice with Indian-sounding names
+      const indianNameVoice = voices.find(
+        voice =>
+          voice.lang.startsWith('en') &&
+          (voice.name.toLowerCase().includes('veena') ||
+           voice.name.toLowerCase().includes('priya') ||
+           voice.name.toLowerCase().includes('deepa') ||
+           voice.name.toLowerCase().includes('anjali'))
+      );
+      
+      // Final fallback to any English voice
+      const englishVoice = voices.find(voice => voice.lang.startsWith('en'));
+      
+      const selectedVoice = indianVoice || indianNameVoice || englishVoice || voices[0];
+      setSelectedVoice(selectedVoice);
+
+      // Log available voices for debugging
+      console.log('Available voices:', voices.map(v => `${v.name} (${v.lang})`));
+      console.log('Selected voice:', selectedVoice?.name);
+    }
+  }, [voices]);
   
   const imageContainerRef = useRef<HTMLDivElement | null>(null);
   const textRefs = useRef<(HTMLElement | null)[]>([]);
@@ -66,7 +106,7 @@ export default function Home() {
       .trim();
   };
 
-  // Function to handle text-to-speech
+  // Function to handle text-to-speech with Indian voice optimization
   const handleSpeak = (text: string, sectionIndex?: number) => {
     if (speaking) {
       cancel();
@@ -80,6 +120,10 @@ export default function Home() {
     
     speak({ 
       text: cleanTextForSpeech(text),
+      voice: selectedVoice || undefined,
+      rate: 0.85,    // Slightly slower for clearer pronunciation
+      pitch: 1.05,   // Slightly higher pitch for female voice
+      volume: 1,     // Full volume
       onEnd: () => {
         setIsPlaying(false);
         setCurrentSection(-1);
@@ -471,30 +515,38 @@ export default function Home() {
                       Analysis Results
                     </h2>
                     <div className="flex items-center gap-3">
-                      <button
-                        onClick={() => handleSpeak(analysisResult)}
-                        className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all duration-300 ${
-                          speaking 
-                            ? 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-900/50' 
-                            : 'bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 hover:bg-green-200 dark:hover:bg-green-900/50'
-                        }`}
-                      >
-                        {speaking ? (
-                          <>
-                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 18M6 6L18 6" />
-                            </svg>
-                            Stop
-                          </>
-                        ) : (
-                          <>
-                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072M17.95 6.05a8 8 0 010 11.9M6.5 8.788v6.424a.5.5 0 00.757.429l5.5-3.212a.5.5 0 000-.858l-5.5-3.212a.5.5 0 00-.757.43z" />
-                            </svg>
-                            Read All
-                          </>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => handleSpeak(analysisResult)}
+                          className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all duration-300 ${
+                            speaking 
+                              ? 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-900/50' 
+                              : 'bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 hover:bg-green-200 dark:hover:bg-green-900/50'
+                          }`}
+                        >
+                          {speaking ? (
+                            <>
+                              <svg className="w-5 h-5 animate-pulse" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 18M6 6L18 6" />
+                              </svg>
+                              Stop
+                            </>
+                          ) : (
+                            <>
+                              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072M17.95 6.05a8 8 0 010 11.9M6.5 8.788v6.424a.5.5 0 00.757.429l5.5-3.212a.5.5 0 000-.858l-5.5-3.212a.5.5 0 00-.757.43z" />
+                              </svg>
+                              Read All
+                            </>
+                          )}
+                        </button>
+                        {selectedVoice && (
+                          <div className="text-xs text-gray-500 dark:text-gray-400">
+                            <div>Voice: {selectedVoice.name}</div>
+                            <div>Language: {selectedVoice.lang}</div>
+                          </div>
                         )}
-                      </button>
+                      </div>
                       <span className="px-3 py-1 bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200 text-sm rounded-full">
                         AI Analysis Complete
                       </span>
