@@ -332,6 +332,12 @@ export default function Home() {
           <>
             {isSignedIn ? (
               <>
+                <a
+                  href="/community"
+                  className="bg-green-100 dark:bg-green-900 text-green-600 dark:text-green-400 px-4 py-2 rounded-lg hover:bg-green-200 dark:hover:bg-green-800 transition-colors"
+                >
+                  Community
+                </a>
                 <span className="text-gray-700 dark:text-gray-300">
                   Welcome, {user.firstName || user.username}!
                 </span>
@@ -562,6 +568,10 @@ export default function Home() {
                       Note: This analysis is powered by AI and should be used as a reference. 
                       For critical plant health issues, consult with a professional botanist or plant pathologist.
                     </p>
+                    <div className="flex items-center justify-center">
+                      <Image src="/image/india.png" alt="India" width={50} height={50} />
+                      <p className="text-sm aura-heading dark:text-gray-400">Made in India</p>
+                    </div>
                   </div>
                 </div>
               </div>
