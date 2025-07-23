@@ -13,6 +13,7 @@
     "@clerk/nextjs": "^4.29.9",
     "@google/generative-ai": "^0.24.1",
     "@prisma/client": "^6.12.0",
+    "emoji-picker-react": "^4.13.2",
     "gsap": "^3.13.0",
     "mysql2": "^3.14.2",
     "next": "15.3.5",

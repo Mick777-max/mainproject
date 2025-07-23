@@ -3,6 +3,7 @@ import { useState, useEffect, useRef } from 'react';
 import { UserButton, useUser } from "@clerk/nextjs";
 import Image from "next/image";
 import Link from "next/link";
+import EmojiPicker, { EmojiClickData } from 'emoji-picker-react';
 
 interface Post {
   id: string;
@@ -59,6 +60,66 @@ interface CommunityMember {
   postsCount: number;
   plantsCount: number;
 }
+
+// Add response templates for different message types
+const getBotResponse = (message: string, botanistName: string) => {
+  // Check if message contains only emojis
+  const emojiRegex = /^[\p{Emoji}\s]+$/u;
+  if (emojiRegex.test(message)) {
+    const responses = [
+      "I see you're expressing yourself with emojis! How can I help you with your plants today?",
+      "Thanks for the emoji! Now, tell me more about your plant concerns.",
+      "I appreciate your cheerful message! What plant-related questions do you have?",
+      `${message} Right back at you! How can I assist you with your plants today?`
+    ];
+    return responses[Math.floor(Math.random() * responses.length)];
+  }
+
+  // Check for specific keywords in the message
+  const keywords = {
+    water: [
+      "Regarding watering, it's important to consider the specific needs of your plant. Could you tell me which plant you're caring for?",
+      "Water management is crucial for plant health. Let me help you establish a proper watering schedule.",
+    ],
+    leaf: [
+      "I notice you're mentioning leaves. Are you seeing any specific discoloration or patterns?",
+      "Leaf health is a great indicator of overall plant wellness. Could you describe what you're observing?",
+    ],
+    soil: [
+      "Soil quality is fundamental for plant health. What type of soil are you currently using?",
+      "Let's discuss your soil situation. Have you noticed any issues with drainage?",
+    ],
+    sunlight: [
+      "Light exposure is crucial. Could you describe where your plant is positioned?",
+      "Let's talk about your plant's lighting conditions. How many hours of light does it receive?",
+    ],
+    disease: [
+      "I understand you're concerned about plant disease. Could you share some photos of the affected areas?",
+      "To help diagnose any disease, could you describe the symptoms you're seeing?",
+    ],
+    grow: [
+      "Growth patterns can tell us a lot about plant health. What changes have you noticed?",
+      "Let's discuss your plant's growth. When did you first notice these changes?",
+    ]
+  };
+
+  // Check message for keywords and get appropriate response
+  for (const [keyword, responses] of Object.entries(keywords)) {
+    if (message.toLowerCase().includes(keyword)) {
+      return responses[Math.floor(Math.random() * responses.length)];
+    }
+  }
+
+  // Default responses for general messages
+  const defaultResponses = [
+    `Hello! I'm ${botanistName}. How can I assist you with your plant care today?`,
+    "Thank you for reaching out! Could you provide more details about your plant care concerns?",
+    "I'm here to help with your plant care questions. What specific issues are you experiencing?",
+    "I'd be happy to help you with your plants. Could you tell me more about what you're observing?"
+  ];
+
+  return defaultResponses[Math.floor(Math.random() * defaultResponses.length)];
+};
 
 const mockPosts: Post[] = [
   {
@@ -150,6 +211,12 @@ export default function Community() {
   const audioChunksRef = useRef<Blob[]>([]); // Change to useRef for better state management
   const [isPlaying, setIsPlaying] = useState<string | null>(null);
   const audioRefs = useRef<{ [key: string]: HTMLAudioElement }>({});
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const emojiPickerRef = useRef<HTMLDivElement>(null);
+  const [enlargedImage, setEnlargedImage] = useState<{
+    src: string;
+    alt: string;
+  } | null>(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -422,7 +489,7 @@ export default function Community() {
     return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
   };
 
-  const handleSendMessage = (e: React.FormEvent) => {
+  const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedBotanist || (!newMessage.trim() && !selectedChatImage)) return;
 
@@ -445,6 +512,26 @@ export default function Community() {
         ]
       }));
 
+      // Bot response to image
+      setTimeout(() => {
+        const imageResponse: Message = {
+          id: (Date.now() + 1).toString(),
+          senderId: selectedBotanist.id,
+          content: "I've received your image. This will help me better understand your plant's condition. Could you also describe what specific concerns you have?",
+          timestamp: new Date().toLocaleTimeString(),
+          isUser: false,
+          type: 'text'
+        };
+
+        setMessages(prev => ({
+          ...prev,
+          [selectedBotanist.id]: [
+            ...(prev[selectedBotanist.id] || []),
+            imageResponse
+          ]
+        }));
+      }, 1000);
+
       handleRemoveChatImage();
     }
 
@@ -466,12 +553,12 @@ export default function Community() {
         ]
       }));
 
-      // Simulate botanist response
+      // Get contextual bot response
       setTimeout(() => {
         const botanistMessage: Message = {
           id: (Date.now() + 1).toString(),
           senderId: selectedBotanist.id,
-          content: `Thank you for your message. I'll help you with your plant care concerns regarding "${newMessage}"`,
+          content: getBotResponse(newMessage, selectedBotanist.name),
           timestamp: new Date().toLocaleTimeString(),
           isUser: false,
           type: 'text'
@@ -490,6 +577,27 @@ export default function Community() {
     setNewMessage('');
   };
 
+  // Handle clicking outside emoji picker
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (emojiPickerRef.current && !emojiPickerRef.current.contains(event.target as Node)) {
+        setShowEmojiPicker(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
+
+  const onEmojiClick = (emojiData: EmojiClickData) => {
+    const cursor = (document.querySelector('input[type="text"]') as HTMLInputElement)?.selectionStart || newMessage.length;
+    const newMessageWithEmoji = newMessage.slice(0, cursor) + emojiData.emoji + newMessage.slice(cursor);
+    setNewMessage(newMessageWithEmoji);
+    setShowEmojiPicker(false);
+  };
+
   // Cleanup audio resources when component unmounts
   useEffect(() => {
     return () => {
@@ -500,6 +608,20 @@ export default function Community() {
       audioRefs.current = {};
     };
   }, []);
+
+  // Function to handle clicking outside the enlarged image
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (enlargedImage && !(event.target as Element).closest('.enlarged-image-container')) {
+        setEnlargedImage(null);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [enlargedImage]);
 
   if (!isLoaded || !isSignedIn) {
     return (
@@ -1007,7 +1129,13 @@ export default function Community() {
                   className={`flex ${message.isUser ? 'justify-end' : 'justify-start'}`}
                 >
                   {!message.isUser && (
-                    <div className="w-8 h-8 rounded-full overflow-hidden mr-2 flex-shrink-0">
+                    <div 
+                      className="w-8 h-8 rounded-full overflow-hidden mr-2 flex-shrink-0 cursor-pointer hover:opacity-80 transition-opacity"
+                      onClick={() => setEnlargedImage({
+                        src: selectedBotanist.image,
+                        alt: selectedBotanist.name
+                      })}
+                    >
                       <Image
                         src={selectedBotanist.image}
                         alt={selectedBotanist.name}
@@ -1077,7 +1205,13 @@ export default function Community() {
                     </span>
                   </div>
                   {message.isUser && (
-                    <div className="w-8 h-8 rounded-full overflow-hidden ml-2 flex-shrink-0">
+                    <div 
+                      className="w-8 h-8 rounded-full overflow-hidden ml-2 flex-shrink-0 cursor-pointer hover:opacity-80 transition-opacity"
+                      onClick={() => setEnlargedImage({
+                        src: user?.imageUrl || '/default-avatar.png',
+                        alt: user?.firstName || 'User'
+                      })}
+                    >
                       <Image
                         src={user?.imageUrl || '/default-avatar.png'}
                         alt="You"
@@ -1116,14 +1250,41 @@ export default function Community() {
             <form onSubmit={handleSendMessage} className="p-4 border-t border-gray-200 dark:border-gray-700">
               <div className="flex gap-2">
                 <div className="flex-1 flex items-end gap-2">
-                  <input
-                    type="text"
-                    value={newMessage}
-                    onChange={(e) => setNewMessage(e.target.value)}
-                    placeholder="Type your message..."
-                    className="flex-1 rounded-lg border border-gray-300 dark:border-gray-600 p-3 focus:ring-2 focus:ring-green-500 dark:bg-gray-700 dark:text-white"
-                    disabled={isRecording}
-                  />
+                  <div className="relative flex-1">
+                    <input
+                      type="text"
+                      value={newMessage}
+                      onChange={(e) => setNewMessage(e.target.value)}
+                      placeholder="Type your message..."
+                      className="w-full rounded-lg border border-gray-300 dark:border-gray-600 p-3 focus:ring-2 focus:ring-green-500 dark:bg-gray-700 dark:text-white pr-10"
+                      disabled={isRecording}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                    >
+                      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                    </button>
+                    {showEmojiPicker && (
+                      <div 
+                        ref={emojiPickerRef}
+                        className="absolute bottom-full mb-2 right-0 z-50"
+                      >
+                        <div className="shadow-xl rounded-lg overflow-hidden">
+                          <EmojiPicker
+                            onEmojiClick={onEmojiClick}
+                            autoFocusSearch={false}
+                            searchPlaceHolder="Search emoji..."
+                            width={300}
+                            height={400}
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
                   <input
                     type="file"
                     accept="image/*"
@@ -1182,6 +1343,35 @@ export default function Community() {
                 </div>
               )}
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Image Preview Modal */}
+      {enlargedImage && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
+          <div className="relative enlarged-image-container max-w-3xl max-h-[90vh] w-[90vw] bg-white dark:bg-gray-800 rounded-lg p-2 shadow-xl">
+            <button
+              onClick={() => setEnlargedImage(null)}
+              className="absolute -top-4 -right-4 p-2 bg-white dark:bg-gray-800 rounded-full shadow-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors z-10"
+            >
+              <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+            <div className="relative w-full aspect-square">
+              <Image
+                src={enlargedImage.src}
+                alt={enlargedImage.alt}
+                fill
+                className="object-contain rounded-lg"
+                sizes="(max-width: 768px) 90vw, (max-width: 1200px) 70vw, 800px"
+                priority
+              />
+            </div>
+            <div className="mt-2 text-center text-gray-700 dark:text-gray-300 font-medium">
+              {enlargedImage.alt}
+            </div>
           </div>
         </div>
       )}

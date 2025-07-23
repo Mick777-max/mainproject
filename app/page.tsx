@@ -365,7 +365,7 @@ export default function Home() {
           >
             Plant Disease Detection
           </h1>
-          <span className="block text-green-600 dark:text-green-400 text-2xl sm:text-3xl md:text-4xl mt-6 font-semibold">
+          <span className="block text-green-600 dark:text-green-400 text-2xl sm:text-3xl md:text-4xl font-semibold">
             AI-Powered Analysis
           </span>
         </div>
