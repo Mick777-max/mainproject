@@ -338,8 +338,8 @@ export default function Home() {
                 >
                   Community
                 </a>
-                <span className="text-gray-700 dark:text-gray-300">
-                  Welcome, {user.firstName || user.username}!
+                <span className="text-gray-300">
+                  Welcome,<strong className="aura-heading">{user.firstName || user.username}!</strong>
                 </span>
                 <UserButton afterSignOutUrl="/"/>
               </>
