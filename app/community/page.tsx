@@ -143,6 +143,91 @@ const mockPosts: Post[] = [
     ],
     createdAt: '2 hours ago',
     isBotanist: true
+  },
+  {
+    id: '2',
+    userId: 'user2',
+    userName: 'Dr. Priya Patel',
+    userImage: '/botanists/riya.jpg',
+    content: 'Exciting news! Our research on sustainable organic pesticides has shown promising results. Here are 5 natural ingredients that can protect your plants:\n\n1. Neem oil\n2. Garlic spray\n3. Eucalyptus oil\n4. Chili pepper solution\n5. Apple cider vinegar\n\nWould you like to know more about any of these?',
+    likes: 45,
+    likedBy: [],
+    comments: [
+      {
+        id: 'c2',
+        userId: 'user3',
+        userName: 'Riya Sharma',
+        userImage: '/user/priya.jpg',
+        content: 'Great list! I\'ve had amazing results with neem oil. It\'s especially effective against aphids.',
+        createdAt: '30 minutes ago'
+      }
+    ],
+    createdAt: '3 hours ago',
+    isBotanist: true
+  },
+  {
+    id: '3',
+    userId: 'user3',
+    userName: 'Rahul Kumar',
+    userImage: '/user/rahul.jpg',
+    content: 'My urban garden is thriving! Started with just a few herbs, and now look at this beautiful harvest. Growing your own food is so rewarding. 🌱🍅',
+    image: '/posts/tomato-disease.jpg',
+    likes: 18,
+    likedBy: [],
+    comments: [
+      {
+        id: 'c3',
+        userId: 'user4',
+        userName: 'Dr. Varma',
+        userImage: '/botanists/varma.webp',
+        content: 'Impressive harvest! Your tomatoes look very healthy. Keep up the great work!',
+        createdAt: '15 minutes ago',
+        isBotanist: true
+      }
+    ],
+    createdAt: '4 hours ago'
+  },
+  {
+    id: '4',
+    userId: 'user4',
+    userName: 'Dr. Varma',
+    userImage: '/botanists/varma.webp',
+    content: 'Monthly Plant Care Tip: As we enter the monsoon season, watch out for root rot! Here are some prevention tips:\n\n1. Ensure good drainage\n2. Don\'t overwater\n3. Check soil moisture before watering\n4. Use well-draining potting mix\n5. Elevate pots slightly\n\nStay tuned for more seasonal tips! 🌿',
+    likes: 56,
+    likedBy: [],
+    comments: [
+      {
+        id: 'c4',
+        userId: 'user5',
+        userName: 'Priya Singh',
+        userImage: '/user/priya.jpg',
+        content: 'This is so helpful! I lost a few plants to root rot last monsoon. Will definitely follow these tips.',
+        createdAt: '45 minutes ago'
+      }
+    ],
+    createdAt: '5 hours ago',
+    isBotanist: true
+  },
+  {
+    id: '5',
+    userId: 'user5',
+    userName: 'Priya Singh',
+    userImage: '/user/priya.jpg',
+    content: 'Question for the experts: My peace lily\'s leaves are turning yellow despite regular care. I water it weekly and it gets indirect light. Any ideas what might be wrong? 🤔',
+    likes: 12,
+    likedBy: [],
+    comments: [
+      {
+        id: 'c5',
+        userId: 'user2',
+        userName: 'Dr. Priya Patel',
+        userImage: '/botanists/riya.jpg',
+        content: 'Yellow leaves often indicate overwatering. Peace lilies prefer to dry out slightly between waterings. Try checking the soil moisture with your finger - only water when the top inch feels dry.',
+        createdAt: '10 minutes ago',
+        isBotanist: true
+      }
+    ],
+    createdAt: '6 hours ago'
   }
 ];
 
@@ -636,6 +721,27 @@ export default function Community() {
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+      {/* Animated Logo */}
+      <div className="fixed top-4 left-4 z-50">
+        <div className="relative w-12 h-12">
+          <div className="absolute inset-0 animate-spin-slow">
+            <div className="absolute inset-0 rounded-full border-4 border-transparent border-t-yellow-400 border-r-green-500 border-b-blue-600 border-l-purple-500"></div>
+          </div>
+          <div className="absolute inset-0 animate-reverse-spin">
+            <div className="absolute inset-0 rounded-full border-4 border-transparent border-t-green-400 border-r-blue-500 border-b-purple-600 border-l-yellow-500"></div>
+          </div>
+          <div className="absolute inset-0 flex items-center justify-center">
+            <Image
+              src="/icon/icon.png"
+              alt="Logo"
+              width={32}
+              height={32}
+              className="animate-pulse"
+            />
+          </div>
+        </div>
+      </div>
+
       {/* Header */}
       <header className="bg-white dark:bg-gray-800 shadow">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">

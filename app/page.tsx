@@ -203,24 +203,98 @@ export default function Home() {
       }
 
       setAnalysisResult(result.analysis);
+      
+      // Only show success message if we got valid analysis
+      if (result.analysis) {
+        setShowSuccess(true);
+        const tl = gsap.timeline();
+        
+        // Animate in
+        tl.fromTo(toastRef.current,
+          { y: 50, opacity: 0 },
+          { y: 0, opacity: 1, duration: 0.3, ease: "power2.out" }
+        );
+        
+        // Wait and animate out
+        tl.to(toastRef.current, {
+          y: 50,
+          opacity: 0,
+          duration: 0.3,
+          delay: 2,
+          ease: "power2.in",
+          onComplete: () => setShowSuccess(false)
+        });
+      }
+
+      // Scroll to analysis result
+      setTimeout(() => {
+        setIsAnalyzing(false);
+        if (result.analysis) {
+          const resultElement = document.getElementById('analysis-result');
+          if (resultElement) {
+            resultElement.scrollIntoView({ behavior: 'smooth' });
+          }
+        }
+      }, 2500);
+
     } catch (err: any) {
-      setError(err.message || 'Failed to analyze the plant. Please try again.');
       console.error('Error:', err);
       // Reset analyzing state
       setIsAnalyzing(false);
-      // Show error toast
+
+      // Check for specific error messages or status codes that indicate server overload
+      const isServerOverloaded = 
+        err.message?.toLowerCase().includes('overload') ||
+        err.message?.toLowerCase().includes('too many requests') ||
+        err.message?.toLowerCase().includes('server busy') ||
+        err.message?.toLowerCase().includes('googlegeneration') ||
+        err.message?.toLowerCase().includes('503') ||
+        (err.status === 429) || // Too Many Requests
+        (err.status === 503);   // Service Unavailable
+
+      // Create and show toast message
       const errorToast = document.createElement('div');
-      errorToast.className = 'fixed bottom-8 right-8 bg-red-500 text-white px-6 py-4 rounded-lg shadow-lg flex items-center gap-3';
-      errorToast.innerHTML = `
-        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-        </svg>
-        <span class="font-medium">Analysis failed. Please try again.</span>
-      `;
+      errorToast.className = 'fixed bottom-8 right-8 px-6 py-4 rounded-lg shadow-lg flex items-center gap-3 transition-all duration-300 z-50';
+      
+      if (isServerOverloaded) {
+        errorToast.className += ' bg-yellow-500 text-white';
+        errorToast.innerHTML = `
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+          </svg>
+          <span class="font-medium">Our servers are currently busy. Please try again in a few moments.</span>
+        `;
+      } else {
+        errorToast.className += ' bg-red-500 text-white';
+        errorToast.innerHTML = `
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+          </svg>
+          <span class="font-medium">Analysis failed. Please try again.</span>
+        `;
+      }
+
+      // Add slide-in animation
+      errorToast.style.transform = 'translateX(100%)';
       document.body.appendChild(errorToast);
+      
+      // Trigger animation after a small delay
       setTimeout(() => {
-        errorToast.remove();
+        errorToast.style.transform = 'translateX(0)';
+      }, 100);
+
+      // Remove toast after 5 seconds with slide-out animation
+      setTimeout(() => {
+        errorToast.style.transform = 'translateX(100%)';
+        setTimeout(() => {
+          errorToast.remove();
+        }, 300);
       }, 5000);
+
+      // Only set error state for non-overload errors
+      if (!isServerOverloaded) {
+        setError('Failed to analyze the plant. Please try again.');
+      }
     }
   };
 
@@ -257,16 +331,6 @@ export default function Home() {
         // Analyze the plant
         await analyzePlant(imageData);
         
-        setTimeout(() => {
-          setIsAnalyzing(false);
-          setShowSuccess(true);
-          
-          // Scroll to analysis result
-          const resultElement = document.getElementById('analysis-result');
-          if (resultElement) {
-            resultElement.scrollIntoView({ behavior: 'smooth' });
-          }
-        }, 2500);
       } catch (err: any) {
         setError(err.message || 'Failed to process image');
         setIsAnalyzing(false);
@@ -326,6 +390,27 @@ export default function Home() {
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen py-20 px-8 sm:px-20 font-[family-name:var(--font-geist-sans)] bg-white dark:bg-gray-900">
+      {/* Animated Logo */}
+      <div className="fixed top-4 left-4 z-50">
+        <div className="relative w-12 h-12">
+          <div className="absolute inset-0 animate-spin-slow">
+            <div className="absolute inset-0 rounded-full border-4 border-transparent border-t-yellow-400 border-r-green-500 border-b-blue-600 border-l-purple-500"></div>
+          </div>
+          <div className="absolute inset-0 animate-reverse-spin">
+            <div className="absolute inset-0 rounded-full border-4 border-transparent border-t-green-400 border-r-blue-500 border-b-purple-600 border-l-yellow-500"></div>
+          </div>
+          <div className="absolute inset-0 flex items-center justify-center">
+            <Image
+              src="/icon/icon.png"
+              alt="Logo"
+              width={32}
+              height={32}
+              className="animate-pulse"
+            />
+          </div>
+        </div>
+      </div>
+
       {/* Header with User Info */}
       <div className="fixed top-0 right-0 p-4 flex items-center gap-4">
         {isLoaded && (
@@ -491,16 +576,29 @@ export default function Home() {
 
             {isAnalyzing && (
               <div className="w-full max-w-md">
-                <div className="flex items-center gap-4 mb-2">
-                  <div className="animate-spin rounded-full h-5 w-5 border-2 border-green-500 border-t-transparent"></div>
-                  <p className="text-gray-600 dark:text-gray-300">Analyzing your plant...</p>
+                <div className="flex flex-col items-center gap-4 mb-2">
+                  <div className="leaf-loader relative w-24 h-24">
+                    <Image
+                      src="/icon/leaf.svg"
+                      alt="Analyzing"
+                      width={96}
+                      height={96}
+                      className="animate-float"
+                    />
+                    <div className="absolute inset-0 animate-pulse-ring">
+                      <div className="absolute inset-0 border-4 border-green-500/20 dark:border-green-400/20 rounded-full"></div>
+                    </div>
+                  </div>
+                  <p className="text-gray-600 dark:text-gray-300 text-lg font-medium animate-pulse mt-2">
+                    Analyzing your plant...
+                  </p>
                 </div>
-                <div className="h-2 w-full bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                {/* <div className="h-2 w-full bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
                   <div
                     ref={progressRef}
                     className="h-full w-0 bg-green-500 rounded-full transition-all duration-300"
                   ></div>
-                </div>
+                </div> */}
               </div>
             )}
 
