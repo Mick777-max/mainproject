@@ -3,6 +3,7 @@ import { useState, useEffect, useRef } from 'react';
 import { UserButton, useUser } from "@clerk/nextjs";
 import Image from "next/image";
 import Link from "next/link";
+import { useRouter } from 'next/navigation';
 import EmojiPicker, { EmojiClickData } from 'emoji-picker-react';
 
 interface Post {
@@ -275,6 +276,8 @@ const mockMembers: CommunityMember[] = [
 
 export default function Community() {
   const { isLoaded, isSignedIn, user } = useUser();
+  const router = useRouter();
+  const [isNavigating, setIsNavigating] = useState(false);
   const [activeTab, setActiveTab] = useState<'discussions' | 'botanists' | 'members'>('discussions');
   const [newPost, setNewPost] = useState('');
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
@@ -708,13 +711,44 @@ export default function Community() {
     };
   }, [enlargedImage]);
 
-  if (!isLoaded || !isSignedIn) {
+  const handleBackToHome = () => {
+    setIsNavigating(true);
+    router.push('/');
+  };
+
+  if (!isLoaded || !isSignedIn || isNavigating) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen py-20 px-8">
-        <h1 className="text-2xl font-bold mb-4">Please sign in to access the community</h1>
-        <Link href="/sign-in" className="bg-green-500 hover:bg-green-600 text-white px-6 py-3 rounded-lg">
-          Sign In
-        </Link>
+      <div className="fixed inset-0 bg-black flex items-center justify-center z-50">
+        <div className="text-center">
+          <div className="relative w-24 h-24 mx-auto mb-8">
+            <div className="absolute inset-0 animate-spin-slow">
+              <div className="absolute inset-0 rounded-full border-4 border-transparent border-t-yellow-400 border-r-green-500 border-b-blue-600 border-l-purple-500"></div>
+            </div>
+            <div className="absolute inset-0 animate-reverse-spin">
+              <div className="absolute inset-0 rounded-full border-4 border-transparent border-t-green-400 border-r-blue-500 border-b-purple-600 border-l-yellow-500"></div>
+            </div>
+            <div className="absolute inset-0 flex items-center justify-center">
+              <Image
+                src="/icon/icon.png"
+                alt="Logo"
+                width={64}
+                height={64}
+                className="animate-pulse"
+              />
+            </div>
+          </div>
+          <p className="text-white text-lg animate-pulse">
+            {!isLoaded || !isSignedIn ? 'Loading Plant Care Community...' : 'Returning to Home...'}
+          </p>
+          {!isSignedIn && !isNavigating && (
+            <Link 
+              href="/sign-in" 
+              className="mt-6 inline-block bg-green-500 hover:bg-green-600 text-white px-6 py-3 rounded-lg transition-colors"
+            >
+              Sign In to Continue
+            </Link>
+          )}
+        </div>
       </div>
     );
   }
@@ -747,15 +781,15 @@ export default function Community() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex flex-col sm:flex-row gap-4 sm:gap-0 justify-between">
             <div className="flex items-center gap-4">
-              <Link 
-                href="/"
+              <button 
+                onClick={handleBackToHome}
                 className="flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
                 </svg>
                 <span className="text-sm font-medium">Back to Home</span>
-              </Link>
+              </button>
               <div className="h-6 w-px bg-gray-300 dark:bg-gray-600"></div>
               <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Plant Care Community</h1>
             </div>

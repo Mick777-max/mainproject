@@ -48,6 +48,8 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentSection, setCurrentSection] = useState<number>(0);
+  const [isPageLoading, setIsPageLoading] = useState(true);
+  const [shouldAnimate, setShouldAnimate] = useState(false);
   
   const { speak, cancel, speaking, voices } = useSpeechSynthesis();
   const [selectedVoice, setSelectedVoice] = useState<SpeechSynthesisVoice | null>(null);
@@ -97,6 +99,62 @@ export default function Home() {
   const progressRef = useRef<HTMLDivElement | null>(null);
   const toastRef = useRef<HTMLDivElement | null>(null);
 
+  // Handle animations after mount
+  useEffect(() => {
+    if (!isPageLoading) {
+      // Small delay to ensure DOM is ready
+      const timer = setTimeout(() => {
+        setShouldAnimate(true);
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [isPageLoading]);
+
+  useLayoutEffect(() => {
+    if (shouldAnimate && imageContainerRef.current && textRefs.current.length > 0) {
+      const tl = gsap.timeline();
+
+      // Set initial states
+      gsap.set([imageContainerRef.current, ...textRefs.current, dropzoneRef.current], {
+        opacity: 0,
+        y: 30
+      });
+
+      tl.to(imageContainerRef.current, { 
+        opacity: 1, 
+        y: 0, 
+        duration: 1.2, 
+        ease: "power3.out" 
+      });
+      
+      tl.to(textRefs.current, { 
+        opacity: 1, 
+        y: 0, 
+        stagger: 0.2, 
+        duration: 0.7, 
+        ease: "power3.out" 
+      }, "-=0.7");
+      
+      tl.to(dropzoneRef.current, { 
+        opacity: 1, 
+        y: 0, 
+        duration: 0.6 
+      }, "-=0.3");
+
+      return () => {
+        tl.kill();
+      };
+    }
+  }, [shouldAnimate]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setIsPageLoading(false);
+    }, 1500);
+
+    return () => clearTimeout(timer);
+  }, []);
+
   // Function to clean text for speech
   const cleanTextForSpeech = (text: string) => {
     return text
@@ -105,6 +163,33 @@ export default function Home() {
       .replace(/<[^>]*>/g, '') // Remove HTML tags
       .trim();
   };
+
+  if (isPageLoading) {
+    return (
+      <div className="fixed inset-0 bg-black flex items-center justify-center z-50">
+        <div className="text-center">
+          <div className="relative w-24 h-24 mx-auto mb-8">
+            <div className="absolute inset-0 animate-spin-slow">
+              <div className="absolute inset-0 rounded-full border-4 border-transparent border-t-yellow-400 border-r-green-500 border-b-blue-600 border-l-purple-500"></div>
+            </div>
+            <div className="absolute inset-0 animate-reverse-spin">
+              <div className="absolute inset-0 rounded-full border-4 border-transparent border-t-green-400 border-r-blue-500 border-b-purple-600 border-l-yellow-500"></div>
+            </div>
+            <div className="absolute inset-0 flex items-center justify-center">
+              <Image
+                src="/icon/icon.png"
+                alt="Logo"
+                width={64}
+                height={64}
+                className="animate-pulse"
+              />
+            </div>
+          </div>
+          <p className="text-white text-lg animate-pulse">Loading Plant Disease Detection...</p>
+        </div>
+      </div>
+    );
+  }
 
   // Function to handle text-to-speech with Indian voice optimization
   const handleSpeak = (text: string, sectionIndex?: number) => {
@@ -130,35 +215,6 @@ export default function Home() {
       }
     });
   };
-
-  useLayoutEffect(() => {
-    const tl = gsap.timeline();
-
-    tl.from(imageContainerRef.current, { 
-      opacity: 0, 
-      y: 30, 
-      duration: 1.2, 
-      ease: "power3.out" 
-    });
-    
-    tl.from(textRefs.current, { 
-      opacity: 0, 
-      y: 15, 
-      stagger: 0.2, 
-      duration: 0.7, 
-      ease: "power3.out" 
-    }, "-=0.7");
-    
-    tl.from(dropzoneRef.current, { 
-      opacity: 0, 
-      scale: 0.8, 
-      duration: 0.6 
-    }, "-=0.3");
-
-    return () => {
-      tl.kill();
-    };
-  }, []);
 
   const showSuccessMessage = () => {
     setShowSuccess(true);
@@ -441,7 +497,7 @@ export default function Home() {
       </div>
 
       <main className="flex flex-col items-center gap-12 max-w-4xl">
-        <div className="text-center">
+        <div className="text-center opacity-100">
           <h1
             className="aura-heading text-4xl sm:text-5xl md:text-6xl font-bold"
             ref={(el) => {
@@ -458,7 +514,7 @@ export default function Home() {
         {isSignedIn ? (
           <>
             <div 
-              className="highlight-section max-w-2xl text-center"
+              className="highlight-section max-w-2xl text-center opacity-100"
               ref={(el) => {
                 textRefs.current[1] = el;
               }}
